@@ -149,17 +149,67 @@ class FrozenCLIPEmbedder(AbstractEncoder):
         for param in self.parameters():
             param.requires_grad = False
 
-    def forward(self, text):
+    def forward(self, text, embed=None):
+        # トークナイザーにトークンを追加
+        if embed is not None:
+            # text_encoderのdtypeにキャスト
+            dtype = self.transformer.get_input_embeddings().weight.dtype
+            print(f"dtype前emb: {embed}")
+            embed.to(dtype)
+            num_added_tokens = self.tokenizer.add_tokens("<token>")
+            if num_added_tokens == 0 and not self.is_add_token:
+                raise ValueError(f"The tokenizer already contains the token. Please pass a different `token` that is not already in the tokenizer.")
+            else:
+                self.is_add_token = True
+            # トークンの特徴ベクトルのサイズ変更
+            self.transformer.resize_token_embeddings(len(self.tokenizer)+3)
+            
         batch_encoding = self.tokenizer(text, truncation=True, max_length=self.max_length, return_length=True,
                                         return_overflowing_tokens=False, padding="max_length", return_tensors="pt")
-        tokens = batch_encoding["input_ids"].to(self.device)
-        outputs = self.transformer(input_ids=tokens)
+        
+       # 埋め込みベクトル追加
+        if embed is not None:
+            remade_tokens = []
+            token_id = self.tokenizer.convert_tokens_to_ids("<token>")
+            print(f"batchlist: {batch_encoding['input_ids'].tolist()}")
+            for token_list in batch_encoding['input_ids'].tolist():
+                remade_token_list = []
+                for token in token_list:
+                    if token_id == token:
+                        remade_token_list.append(token_id)
+                        remade_token_list.append(token_id+1)
+                        remade_token_list.append(token_id+2)
+                        remade_token_list.append(token_id+3)
+                    else:
+                        remade_token_list.append(token)
+                # トークン追加分を削除
+                del remade_token_list[-3:]
+                remade_tokens.append(remade_token_list)
+            # トークンのIDを取得し特徴ベクトルを割り当てる
+            self.transformer.get_input_embeddings().weight.data[token_id] = embed[0]
+            self.transformer.get_input_embeddings().weight.data[token_id+1] = embed[1]
+            self.transformer.get_input_embeddings().weight.data[token_id+2] = embed[2]
+            self.transformer.get_input_embeddings().weight.data[token_id+3] = embed[3]
 
-        z = outputs.last_hidden_state
-        return z
 
-    def encode(self, text):
-        return self(text)
+            print(f"remade_tokes: {remade_tokens}")
+            print(f"remade_tokes len: {len(remade_tokens)}")
+            tokens = torch.tensor(remade_tokens)
+            tokens = tokens.to(self.device)
+            print(f"tokens: {tokens}")
+            outputs = self.transformer(input_ids=tokens)
+
+            z = outputs.last_hidden_state
+            return z
+        else:
+            tokens = batch_encoding["input_ids"].to(self.device)
+            outputs = self.transformer(input_ids=tokens)
+
+            z = outputs.last_hidden_state
+            return z
+
+    def encode(self, text, embed=None):
+        return self(text,embed)
 
 
 class FrozenCLIPTextEmbedder(nn.Module):
