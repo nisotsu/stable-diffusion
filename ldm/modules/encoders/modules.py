@@ -154,7 +154,6 @@ class FrozenCLIPEmbedder(AbstractEncoder):
         if embed is not None:
             # text_encoderのdtypeにキャスト
             dtype = self.transformer.get_input_embeddings().weight.dtype
-            print(f"dtype前emb: {embed}")
             embed.to(dtype)
             num_added_tokens = self.tokenizer.add_tokens("<token>")
             if num_added_tokens == 0 and not self.is_add_token:
@@ -192,11 +191,8 @@ class FrozenCLIPEmbedder(AbstractEncoder):
             self.transformer.get_input_embeddings().weight.data[token_id+3] = embed[3]
 
 
-            print(f"remade_tokes: {remade_tokens}")
-            print(f"remade_tokes len: {len(remade_tokens)}")
             tokens = torch.tensor(remade_tokens)
             tokens = tokens.to(self.device)
-            print(f"tokens: {tokens}")
             outputs = self.transformer(input_ids=tokens)
 
             z = outputs.last_hidden_state
