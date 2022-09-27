@@ -182,7 +182,8 @@ class FrozenCLIPEmbedder(AbstractEncoder):
                     else:
                         remade_token_list.append(token)
                 # トークン追加分を削除
-                del remade_token_list[-3:]
+                if len(remade_token_list) > len(token_list):
+                    del remade_token_list[-(len(remade_token_list)-len(token_list)):]
                 remade_tokens.append(remade_token_list)
             # トークンのIDを取得し特徴ベクトルを割り当てる
             self.transformer.get_input_embeddings().weight.data[token_id] = embed[0]
